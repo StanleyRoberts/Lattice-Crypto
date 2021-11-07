@@ -9,12 +9,15 @@
 # Part of a project by Stanley Roberts on Lattice Cryptography  
 # This code is an implementation of *Regevs* public key cryptography mechanism using LWE
 
+# In[77]:
 
 
 #### Imports ####
 
 from sage.stats.distributions.discrete_gaussian_integer import DiscreteGaussianDistributionIntegerSampler
 import copy
+import math
+import random
 
 
 # Module Info
@@ -27,6 +30,7 @@ import copy
 # see: 'A Framework to Select Parameters for Lattice-Based Cryptography'
 # and 'Better Key Sizes (and Attacks) for LWE-Based Encryption'
 
+# In[78]:
 
 
 """
@@ -50,8 +54,9 @@ LWE : creates an LWE system
 # Helper Classes
 # ---------------------
 # 
-# Smaller classes to assist in creates the LWE system
+# Smaller classes to assist in implementing the LWE system
 
+# In[79]:
 
 
 class publicKey:
@@ -75,8 +80,8 @@ class publicKey:
         """
         Get an A vector from the public key.
         
-        Paramters
-        ---------
+        Parameters
+        ----------
         i : int
             vector index.
         
@@ -93,8 +98,8 @@ class publicKey:
         """
         Get a B value from the public key.
         
-        Paramters
-        ---------
+        Parameters
+        ----------
         i : int
             value index.
         
@@ -105,6 +110,35 @@ class publicKey:
         """
         temp = list(self.pk.row(i))
         return temp.pop()
+    
+    def getSampleNo(self):
+        return self.pk.nrows()
+    
+    def getModulus(self):
+        return self.q
+    
+    def __str__(self):
+        return self.pk.__str__() + " mod: " + self.q.__str__()
+    
+class cipherText:
+    '''
+    Generates an LWE ciphertext pair.
+    
+    Parameters
+    ----------
+    a : sagemath vector
+        vector part of pair
+    b : int
+        integer part of pair
+    
+    '''
+    def __init__(self, a, b):
+        self.a = a
+        self.b = b
+    
+    def __str__(self):
+        return "[" + self.a.__str__() + ", " + self.b.__str__() + "]"
+    
 
 
 # LWE Implementation
@@ -112,6 +146,7 @@ class publicKey:
 # 
 # Main implementation of LWE PKE system with encryption and decryption
 
+# In[82]:
 
 
 class LWE:
@@ -139,12 +174,12 @@ class LWE:
         if m==None:
             self.m = ((self.n+1)*self.q.log(prec=100)).integer_part()
         if x==None:
-            alpha = self.q * (1/(sqrt(self.n)*log(self.n)^2))
-            x = DiscreteGaussianDistributionIntegerSampler(alpha/sqrt(2*pi))
+            alpha = (1/(sqrt(self.n)*log(self.n)^2))
+            self.x = DiscreteGaussianDistributionIntegerSampler(alpha/sqrt(2*pi))
         
         self.VS = GF(self.q)^self.n #vector space, dimension n, modulus q
         self._s = self.VS.random_element() #secret key
-        self._pk = self.__genPublicKey(self._s, self.q) #public key
+        self._pk = self.__genPublicKey() #public key
     
     def getPublicKey(self):
         """
@@ -157,20 +192,20 @@ class LWE:
         """
         return copy.deepcopy(self._pk)
     
-    def __LWEsample(self, s):
+    def __LWEsample(self):
         # gets a sample (a, b) where a is a randomly generated vector such that a ∈ VS
         # and b = <a, s> + e where e is sampled according to the error distribution
         
         a = self.VS.random_element()
         er = self.x()
-        b = self.s.inner_product(a) + er
+        b = self._s.inner_product(a) + er
         return vector(Integers(self.q), list(a)+[b.lift()])
 
-    def __genPublicKey(self, s):
+    def __genPublicKey(self):
         # generates a public key by combining m samples (from sampler) into a matrix form
         
-        vector_list = [LWEsample(s) for x in range(self.m)]
-        return publicKey(matrix(vector_list))
+        vector_list = [self.__LWEsample() for x in range(self.m)]
+        return publicKey(matrix(vector_list), self.q)
 
     def enc(self, bit, key):
         """
@@ -186,20 +221,19 @@ class LWE:
         sagemath vector : vector composing one half of ciphertext pair (a)
         int : integer composing other half of pair (b)
         """
-        sample_size = key.nrows()
+        
+        sample_size = key.getSampleNo()
+        q = key.getModulus()
         subset = Subsets(sample_size-1).random_element()
         a, b = 0, 0
         for i in subset:
             a += key.getA(i)
-        if bit==0:
-            pass
-        elif bit==1:
-            pass
-        else:
-            raise ValueError("bit is non-binary").with_traceback(tracebackobj)
-        return a, b%q
+            b += key.getB(i)
+        if bit==1:
+            b += math.floor(q/2)
+        return cipherText(a%q, b%q)
     
-    def dec(self, a, b):
+    def dec(self, pair):
         """
         Decrypts a bit which has been encrypted using the instance's public key
         
@@ -213,7 +247,11 @@ class LWE:
         int : decrypted bit
         
         """
-        pass
+        testval = lift(pair.b-pair.a.inner_product(self._s))
+        compval = math.floor(self.q/2)
+        
+        if (min(0, compval, key = lambda x: abs(x-testval))==0): return 0
+        return 1
     
     def encString(self, string):
         """
@@ -226,7 +264,7 @@ class LWE:
         
         Returns
         -------
-        sagemath mastrix : matrix whose rows correspond to a bit encryption pair
+        sagemath matrix : matrix whose rows correspond to a bit encryption pair
         """
         pass
     
@@ -244,6 +282,35 @@ class LWE:
         """
         pass
 
+
+# In[86]:
+
+
+alice = LWE(n=150)
+bob = LWE(n=200)
+
+success, fail = 0, 0
+tests = 200
+
+for i in range (0, tests):
+    message = random.randint(0, 1)
+    cipher = alice.enc(message, bob.getPublicKey())
+    plain = bob.dec(cipher)
+    if (message == plain):
+        success += 1
+    else:
+        fail += 1
+        
+print("Testing Alice -> Bob messages " + str(tests) + " times:\nSuccesses: " + str(success) + "\nFailures: " + str(fail) + "\nFailure rate: " + str(float((fail*100/tests))) + "%")
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
 
 
 
