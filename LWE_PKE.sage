@@ -3,13 +3,13 @@
 
 # Lattice LWE Implementation
 # =======================
-# ---
+# 
 # 
 # 
 # Part of a project by Stanley Roberts on Lattice Cryptography  
 # This code is an implementation of *Regevs* public key cryptography mechanism using LWE
 
-# In[77]:
+# In[1]:
 
 
 #### Imports ####
@@ -30,7 +30,7 @@ import random
 # see: 'A Framework to Select Parameters for Lattice-Based Cryptography'
 # and 'Better Key Sizes (and Attacks) for LWE-Based Encryption'
 
-# In[78]:
+# In[2]:
 
 
 """
@@ -56,7 +56,7 @@ LWE : creates an LWE system
 # 
 # Smaller classes to assist in implementing the LWE system
 
-# In[79]:
+# In[3]:
 
 
 class publicKey:
@@ -71,6 +71,9 @@ class publicKey:
     
     pk : sagemath matrix
         matrix to use to construct public key.
+    q : int
+        public key modulus
+    
     """
     def __init__(self, pk, q):
         self.pk = pk
@@ -146,7 +149,7 @@ class cipherText:
 # 
 # Main implementation of LWE PKE system with encryption and decryption
 
-# In[82]:
+# In[4]:
 
 
 class LWE:
@@ -283,35 +286,67 @@ class LWE:
         pass
 
 
-# In[86]:
+# Unit Tests
+# --------------
+# 
+# Unit tests for module, including testing helper classes and full LWE implementation
+
+# In[5]:
 
 
-alice = LWE(n=150)
-bob = LWE(n=200)
+import unittest
 
-success, fail = 0, 0
-tests = 200
-
-for i in range (0, tests):
-    message = random.randint(0, 1)
-    cipher = alice.enc(message, bob.getPublicKey())
-    plain = bob.dec(cipher)
-    if (message == plain):
-        success += 1
-    else:
-        fail += 1
+class TestHelpers(unittest.TestCase):
+    
+    def test_publicKey(self): # generate some random matrix and test get functions work as expected
+        m, n = (randint(1, 100) for x in range(2))
+        q = random_prime(2*n^2, n^2) 
+        A = random_matrix(GF(q), m, n-1)
+        B = random_matrix(GF(q), m, 1)
         
-print("Testing Alice -> Bob messages " + str(tests) + " times:\nSuccesses: " + str(success) + "\nFailures: " + str(fail) + "\nFailure rate: " + str(float((fail*100/tests))) + "%")
+        key = publicKey(block_matrix(1, 2, [A, B]), q)
+        
+        
+        for i in range(0, m-1):
+            self.assertEqual(A.row(i), key.getA(i))
+            self.assertEqual(B[i, 0], key.getB(i))
+            self.assertEqual(q, key.getModulus())
+    
+    def test_Error_publicKey(self):
+        # test error for modulus more than entries
+        # test error for non integer matrix or non-prime q
+        pass
 
 
-# In[ ]:
+class TestLWE(unittest.TestCase):
+    
+    def test_privateMethods(self):
+        pass
+    
+    def test_enc(self):
+        pass
+    
+    def test_dec(self):
+        pass
+    
+    def test_LWE(self):
+        
+        alice = LWE(n=150)
+        bob = LWE(n=200)
+
+        tests = 100
+
+        success = True
+        
+        pk = bob.getPublicKey()
+        for i in range (0, tests):
+            message = randint(0, 1)
+            cipher = alice.enc(message, pk)
+            plain = bob.dec(cipher)
+            if message != plain: success = False
+            
+        self.assertTrue(success)
 
 
-
-
-
-# In[ ]:
-
-
-
+unittest.main(argv=['-v'], verbosity=2, exit=False)
 
