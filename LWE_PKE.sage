@@ -9,7 +9,7 @@
 # Part of a project by Stanley Roberts on Lattice Cryptography  
 # This code is an implementation of *Regevs* public key cryptography mechanism using LWE
 
-# In[1]:
+# In[4]:
 
 
 #### Imports ####
@@ -30,7 +30,7 @@ import random
 # see: 'A Framework to Select Parameters for Lattice-Based Cryptography'
 # and 'Better Key Sizes (and Attacks) for LWE-Based Encryption'
 
-# In[2]:
+# In[5]:
 
 
 """
@@ -56,7 +56,7 @@ LWE : creates an LWE system
 # 
 # Smaller classes to assist in implementing the LWE system
 
-# In[3]:
+# In[6]:
 
 
 class publicKey:
@@ -149,7 +149,7 @@ class cipherText:
 # 
 # Main implementation of LWE PKE system with encryption and decryption
 
-# In[4]:
+# In[7]:
 
 
 class LWE:
@@ -291,7 +291,7 @@ class LWE:
 # 
 # Unit tests for module, including testing helper classes and full LWE implementation
 
-# In[5]:
+# In[ ]:
 
 
 import unittest
@@ -311,11 +311,36 @@ class TestHelpers(unittest.TestCase):
             self.assertEqual(A.row(i), key.getA(i))
             self.assertEqual(B[i, 0], key.getB(i))
             self.assertEqual(q, key.getModulus())
+            
+            
+    # public key can afford rigorous type-checking as it is only called once per LWE instance
+    def test_BadModError_publicKey(self):
+        m, n = (randint(1, 100) for x in range(2))
+        A = random_matrix(ZZ, m, n-1)
+        B = random_matrix(ZZ, m, 1)
+        p = A[randint(0, m-1), randint(0, n-1)]
+        q = random_prime(2*p, p)
+        
+        with self.assertRaises(ValueError):
+            publicKey(block_matrix(1, 2, [A, B]), q)
     
-    def test_Error_publicKey(self):
-        # test error for modulus more than entries
-        # test error for non integer matrix or non-prime q
-        pass
+    def test_NonIntegerError_publicKey(self):
+        m, n = (randint(1, 100) for x in range(2))
+        q = random_prime(2*n^2, n^2) 
+        A = random_matrix(QQ, m, n-1)
+        B = random_matrix(QQ, m, 1)
+        
+        with self.assertRaises(ValueError):
+            publicKey(block_matrix(1, 2, [A, B]), q)
+        
+    def test_NonPrimeError_publicKey(self):
+        m, n = (randint(1, 100) for x in range(2))
+        q = randomint(n^2, 2*n^2) 
+        A = random_matrix(GF(q), m, n-1)
+        B = random_matrix(GF(q), m, 1)
+        
+        with self.assertRaises(ValueError):
+            publicKey(block_matrix(1, 2, [A, B]), q)
 
 
 class TestLWE(unittest.TestCase):
@@ -349,4 +374,10 @@ class TestLWE(unittest.TestCase):
 
 
 unittest.main(argv=['-v'], verbosity=2, exit=False)
+
+
+# In[ ]:
+
+
+
 
