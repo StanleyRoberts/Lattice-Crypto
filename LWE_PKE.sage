@@ -9,7 +9,7 @@
 # Part of a project by Stanley Roberts on Lattice Cryptography  
 # This code is an implementation of *Regevs* public key cryptography mechanism using LWE
 
-# In[4]:
+# In[1]:
 
 
 #### Imports ####
@@ -30,7 +30,7 @@ import random
 # see: 'A Framework to Select Parameters for Lattice-Based Cryptography'
 # and 'Better Key Sizes (and Attacks) for LWE-Based Encryption'
 
-# In[5]:
+# In[2]:
 
 
 """
@@ -56,7 +56,7 @@ LWE : creates an LWE system
 # 
 # Smaller classes to assist in implementing the LWE system
 
-# In[6]:
+# In[3]:
 
 
 class publicKey:
@@ -149,7 +149,7 @@ class cipherText:
 # 
 # Main implementation of LWE PKE system with encryption and decryption
 
-# In[7]:
+# In[4]:
 
 
 class LWE:
@@ -291,7 +291,7 @@ class LWE:
 # 
 # Unit tests for module, including testing helper classes and full LWE implementation
 
-# In[ ]:
+# In[42]:
 
 
 import unittest
@@ -305,7 +305,6 @@ class TestHelpers(unittest.TestCase):
         B = random_matrix(GF(q), m, 1)
         
         key = publicKey(block_matrix(1, 2, [A, B]), q)
-        
         
         for i in range(0, m-1):
             self.assertEqual(A.row(i), key.getA(i))
@@ -335,7 +334,7 @@ class TestHelpers(unittest.TestCase):
         
     def test_NonPrimeError_publicKey(self):
         m, n = (randint(1, 100) for x in range(2))
-        q = randomint(n^2, 2*n^2) 
+        q = randomint(n^2, 2*n^2)
         A = random_matrix(GF(q), m, n-1)
         B = random_matrix(GF(q), m, 1)
         
@@ -345,34 +344,60 @@ class TestHelpers(unittest.TestCase):
 
 class TestLWE(unittest.TestCase):
     
-    def test_privateMethods(self):
-        pass
-    
-    def test_enc(self):
-        pass
-    
-    def test_dec(self):
-        pass
-    
-    def test_LWE(self):
+    def test_LWE_sampling(self): #ie private methods
+        n = 20
+        mod = random_prime(2*n^2, n^2) 
+        test = LWE(n, q=mod)
+        pk = test.getPublicKey()
         
-        alice = LWE(n=150)
-        bob = LWE(n=200)
+        # list of booleans where each value is true iff entry in public key i,j is less than modulus
+        testpk = [lift(pk.getA(i)[j]) < mod and lift(pk.getB(i)) < mod for i in range(0, pk.getSampleNo()) for j in range(0, n)]
+        
+        self.assertTrue(all(testpk))
+
+        
+    def test_LWE(self): #ie tests encryption and decryption pairs equal for a large sample
+        
+        alice = LWE(n=80)
+        bob = LWE(n=100)
 
         tests = 100
 
+        # test alice enc, bob dec
         success = True
-        
         pk = bob.getPublicKey()
         for i in range (0, tests):
             message = randint(0, 1)
             cipher = alice.enc(message, pk)
             plain = bob.dec(cipher)
-            if message != plain: success = False
-            
+            if message != plain: success = False   
         self.assertTrue(success)
-
-
+        
+        # test bob enc, alice dec
+        success = True
+        pk = alice.getPublicKey()
+        for i in range (0, tests):
+            message = randint(0, 1)
+            cipher = bob.enc(message, pk)
+            plain = alice.dec(cipher)
+            if message != plain: success = False
+        self.assertTrue(success)
+        
+    def test_LWE_adv(self): # test string based methods of LWE
+        
+        alice = LWE(n=30)
+        bob = LWE(n=40)
+        
+        message = "SYN"
+        cipher = alice.enc(message, bob.getPublicKey())
+        plain = bob.dec(cipher)
+        assertEqual(message, plain)
+        
+        message = "ACK"
+        cipher = bob.enc(message, alice.getPublicKey())
+        plain = alice.dec(cipher)
+        assertEqual(message, plain)
+        
 unittest.main(argv=['-v'], verbosity=2, exit=False)
 
 
