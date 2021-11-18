@@ -3,22 +3,25 @@
 
 # Lattice LWE Implementation
 # =======================
-# 
-# 
-# 
 # Part of a project by Stanley Roberts on Lattice Cryptography  
 # This code is an implementation of *Regevs* public key cryptography mechanism using LWE
+# 
+# &nbsp;
+# &nbsp;
+# &nbsp;
+# 
+# Imports
+# -----------
+# To support modularization we explicitly import the sage functions we use, rather than relying on the sage interpreter to resolve them
 
 # In[1]:
 
 
-#### Imports ####
-
 import copy
 import math
 import random
+import unittest
 
-# to support modularization we explicitly import the functions we use rather than relying on sage interpreter
 from sage.stats.distributions.discrete_gaussian_integer import DiscreteGaussianDistributionIntegerSampler
 from sage.modules.free_module_element import vector
 from sage.functions.other import sqrt
@@ -33,7 +36,7 @@ from sage.misc.functional import lift
 
 
 # Module Info
-# ----------
+# -----------------
 # 
 # 
 # All default parameters are generated as suggested in Regev's paper but can be
@@ -58,8 +61,9 @@ Random Linear Codes, and Cryptography
 
 Contents
 --------
-publicKey : creates a public key
-LWE : creates an LWE system
+publicKey : Public key data type for LWE
+LWE : object representing an LWE system
+cipherText : An LWE ciphertext of form (a, b) where a is a vector and b an integer
 """
 
 
@@ -301,12 +305,10 @@ class LWE:
 # Unit Tests
 # --------------
 # 
-# Unit tests for module, including testing helper classes and full LWE implementation
+# Unit tests for module, including testing helper classes and full LWE implementation, executed when running the below cell (or running the notebook file directly as a python/sage file)
 
 # In[5]:
 
-
-import unittest
 
 class TestHelpers(unittest.TestCase):
     
