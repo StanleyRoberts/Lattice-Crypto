@@ -14,10 +14,22 @@
 
 #### Imports ####
 
-from sage.stats.distributions.discrete_gaussian_integer import DiscreteGaussianDistributionIntegerSampler
 import copy
 import math
 import random
+
+# to support modularization we explicitly import the functions we use rather than relying on sage interpreter
+from sage.stats.distributions.discrete_gaussian_integer import DiscreteGaussianDistributionIntegerSampler
+from sage.modules.free_module_element import vector
+from sage.functions.other import sqrt
+from sage.arith.misc import random_prime
+from sage.functions.log import log
+from sage.symbolic.constants import pi
+from sage.rings.finite_rings.finite_field_constructor import GF
+from sage.matrix.constructor import matrix
+from sage.combinat.subset import Subsets
+from sage.rings.finite_rings.integer_mod_ring import Integers
+from sage.misc.functional import lift
 
 
 # Module Info
@@ -173,14 +185,14 @@ class LWE:
     def __init__(self, n=512, q=None, m=None, x=None):
         self.n, self.q, self.m, self.x = n, q, m, x
         if q==None:
-            self.q = random_prime(2*self.n^2, self.n^2) 
+            self.q = random_prime((2*self.n**2), True, (self.n**2)) 
         if m==None:
             self.m = ((self.n+1)*self.q.log(prec=100)).integer_part()
         if x==None:
-            alpha = (1/(sqrt(self.n)*log(self.n)^2))
+            alpha = (1/(sqrt(self.n)*log(self.n)**2))
             self.x = DiscreteGaussianDistributionIntegerSampler(alpha/sqrt(2*pi))
         
-        self.VS = GF(self.q)^self.n #vector space, dimension n, modulus q
+        self.VS = GF(self.q)**self.n #vector space, dimension n, modulus q
         self._s = self.VS.random_element() #secret key
         self._pk = self.__genPublicKey() #public key
     
@@ -291,7 +303,7 @@ class LWE:
 # 
 # Unit tests for module, including testing helper classes and full LWE implementation
 
-# In[42]:
+# In[5]:
 
 
 import unittest
@@ -300,7 +312,7 @@ class TestHelpers(unittest.TestCase):
     
     def test_publicKey(self): # generate some random matrix and test get functions work as expected
         m, n = (randint(1, 100) for x in range(2))
-        q = random_prime(2*n^2, n^2) 
+        q = random_prime(2*n**2, n**2) 
         A = random_matrix(GF(q), m, n-1)
         B = random_matrix(GF(q), m, 1)
         
@@ -317,7 +329,7 @@ class TestHelpers(unittest.TestCase):
         m, n = (randint(1, 100) for x in range(2))
         A = random_matrix(ZZ, m, n-1)
         B = random_matrix(ZZ, m, 1)
-        p = A[randint(0, m-1), randint(0, n-1)]
+        p = A[randint(0, m-1), randint(0, n-1)]+2
         q = random_prime(2*p, p)
         
         with self.assertRaises(ValueError):
@@ -325,7 +337,7 @@ class TestHelpers(unittest.TestCase):
     
     def test_NonIntegerError_publicKey(self):
         m, n = (randint(1, 100) for x in range(2))
-        q = random_prime(2*n^2, n^2) 
+        q = random_prime(2*n**2, n**2) 
         A = random_matrix(QQ, m, n-1)
         B = random_matrix(QQ, m, 1)
         
@@ -334,7 +346,7 @@ class TestHelpers(unittest.TestCase):
         
     def test_NonPrimeError_publicKey(self):
         m, n = (randint(1, 100) for x in range(2))
-        q = randomint(n^2, 2*n^2)
+        q = randomint(n**2, 2*n**2)
         A = random_matrix(GF(q), m, n-1)
         B = random_matrix(GF(q), m, 1)
         
@@ -346,7 +358,7 @@ class TestLWE(unittest.TestCase):
     
     def test_LWE_sampling(self): #ie private methods
         n = 20
-        mod = random_prime(2*n^2, n^2) 
+        mod = random_prime(2*n**2, n**2) 
         test = LWE(n, q=mod)
         pk = test.getPublicKey()
         
@@ -391,14 +403,15 @@ class TestLWE(unittest.TestCase):
         message = "SYN"
         cipher = alice.enc(message, bob.getPublicKey())
         plain = bob.dec(cipher)
-        assertEqual(message, plain)
+        self.assertEqual(message, plain)
         
         message = "ACK"
         cipher = bob.enc(message, alice.getPublicKey())
         plain = alice.dec(cipher)
-        assertEqual(message, plain)
-        
-unittest.main(argv=['-v'], verbosity=2, exit=False)
+        self.assertEqual(message, plain)
+
+if __name__ == '__main__':
+    unittest.main(argv=['-v'], verbosity=2, exit=False)
 
 
 # In[ ]:
