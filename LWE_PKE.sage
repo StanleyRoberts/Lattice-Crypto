@@ -72,7 +72,7 @@ cipherText : An LWE ciphertext of form (a, b) where a is a vector and b an integ
 # 
 # Smaller classes to assist in implementing the LWE system
 
-# In[3]:
+# In[29]:
 
 
 class publicKey:
@@ -139,6 +139,49 @@ class publicKey:
     def __str__(self):
         return self.pk.__str__() + " mod: " + self.q.__str__()
     
+class publicKey_amort(publicKey):
+    def __init__(self, a, p, q):
+        self.a, self.b, self.q = a, p, q
+        
+    def getA(self, i):
+        """
+        Get an A vector from the public key.
+        
+        Parameters
+        ----------
+        i : int
+            vector index.
+        
+        Returns
+        -------
+        sagemath vector
+            the appropriate A vector.
+        """
+        return self.a.row(i)
+        
+    def getB(self, i):
+        """
+        Get a B vector from the public key.
+        
+        Parameters
+        ----------
+        i : int
+            vector index.
+        
+        Returns
+        -------
+        sagemath vector
+            the appropriate B vector.
+        """
+        return self.b.row(i)
+    
+    def geeSampleNo(self): return None
+    
+    def getModulus(self): return q
+    
+    def __str__(self):
+        return self.a.__str__() + "\n\n" + self.b.__str__() + " mod: " + self.q.__str__()
+    
 class cipherText:
     '''
     Generates an LWE ciphertext pair.
@@ -165,7 +208,7 @@ class cipherText:
 # 
 # Main implementation of LWE PKE system with encryption and decryption
 
-# In[4]:
+# In[33]:
 
 
 class LWE:
@@ -206,8 +249,8 @@ class LWE:
         
         Returns
         -------
-        sagemath matrix
-            the public key in matrix form [A, q]
+        publicKey
+            the public key in matrix form [A|b]
         """
         return copy.deepcopy(self._pk)
     
@@ -237,9 +280,11 @@ class LWE:
         
         Returns
         -------
-        sagemath vector : vector composing one half of ciphertext pair (a)
-        int : integer composing other half of pair (b)
+        cipherText
+            object containing vector a, and integer b which represents ciphertext of a bit)
         """
+        if bit not in ["1", "0"]:
+            raise ValueError("Not a single bit value")
         
         sample_size = key.getSampleNo()
         q = key.getModulus()
@@ -248,23 +293,23 @@ class LWE:
         for i in subset:
             a += key.getA(i)
             b += key.getB(i)
-        if bit==1:
+        if bit=="1":
             b += math.floor(q/2)
+            
         return cipherText(a%q, b%q)
     
     def dec(self, pair):
         """
-        Decrypts a bit which has been encrypted using the instance's public key
+        Decrypts a bit which has been encrypted using the instance's secret key
         
         Parameters
         ----------
-        a : vector half of encryption pair
-        b : integer half of encryption pair
+        pair : ciphertext object for an encrypted bit
         
         Returns
         -------
-        int : decrypted bit
-        
+        int
+            decrypted bit
         """
         testval = lift(pair.b-pair.a.inner_product(self._s))
         compval = math.floor(self.q/2)
@@ -272,34 +317,88 @@ class LWE:
         if (min(0, compval, key = lambda x: abs(x-testval))==0): return 0
         return 1
     
-    def encString(self, string):
-        """
-        Encrypts a string using the given key
-        
-        Parameters
-        ----------
-        string : plaintext string to encrypt
-        key : public key to encrypt using
-        
-        Returns
-        -------
-        sagemath matrix : matrix whose rows correspond to a bit encryption pair
-        """
-        pass
+class LWE_amort(LWE):
+    """
+    Constructs an LWE enviroment that supports multibit encryption.
     
-    def decMatrix(self, a):
-        """
-        Decrypts a matrix whose rows each correspond to an encryption pair constructed using instance's public key
+    Constructs a new LWE enviroment based on given parameter and
+    generates a public and private key for encryption and decryption.
+    
+    Parameters
+    ----------
+    n : int
+        security parameter which defines dimension, defaults to 512
+    q : int
+        modulus, defaults to a random prime in the range of n^2 to 2n^2
+    m : int
+        desired number of samples for the public key, defaults to (n+1)log(q)
+    x : callable object
+        error distribution, defaults to a discrete gaussian with standard deviation 1/sqrt(n)log^2(n)
+    l : int
+        plaintext size for amortized enc/dec
+    """
+    def __init__(self, n=512, q=None, m=None, x=None, l=10):
+        self.n, self.q, self.m, self.x, self.l = n, q, m, x, l
+        if q==None:
+            self.q = random_prime((2*self.n**2), True, (self.n**2)) 
+        if m==None:
+            self.m = ((self.n+1)*self.q.log(prec=100)).integer_part()
+        if x==None:
+            alpha = (1/(sqrt(self.n)*log(self.n)**2))
+            self.x = DiscreteGaussianDistributionIntegerSampler(alpha/sqrt(2*pi))
         
-        Parameters
-        ----------
-        a : sagemath matrix to decrypt
+        self.VS = GF(self.q)**self.n #vector space, dimension n, modulus q
+        self._s = matrix([self.VS.random_element() for i in range(self.l)]) #secret key
+        self._pk = self.__genPublicKey() #public key
+        
+    def __genPublicKey(self):
+        a = matrix([self.VS.random_element() for i in range(self.m)])
+        x = matrix(GF(self.q), (vector([self.x() for i in range(self.l)]) for i in range(self.m)))
+        p = (self._s*a.T)+x.T
+        return publicKey_amort(a, p, self.q)
+    
+    def getPublicKey(self):
+        """
+        Return public key associated with the LWE object
         
         Returns
         -------
-        string : plaintext string
+        publicKey_amort
+            amortized public key object
         """
-        pass
+        return copy.deepcopy(self._pk)
+    
+        
+    def enc(self, bitstring, apk):
+        """
+        Encrypts a bit-string using the given (amortized) key
+        
+        Parameters
+        ----------
+        bitstring : plaintext string to encrypt
+        apk : amortized public key to encrypt using
+        
+        Returns
+        -------
+        cipherText
+            object containing vectors a, b, which represents ciphertext of the bitstring)
+        """
+    
+    def dec(self, a):
+        """
+        Decrypts a cipherText using this instance' secret key
+        
+        Parameters
+        ----------
+        a : ciphertext pair to decrypt
+        
+        Returns
+        -------
+        string
+            decrypted bit-string
+        """
+alice = LWE_amort(n=20)
+print(alice.getPublicKey())
 
 
 # Unit Tests
@@ -397,17 +496,17 @@ class TestLWE(unittest.TestCase):
             if message != plain: success = False
         self.assertTrue(success)
         
-    def test_LWE_adv(self): # test string based methods of LWE
+    def test_LWE_amort(self): # test string based methods of LWE
         
-        alice = LWE(n=30)
-        bob = LWE(n=40)
+        alice = LWE_amort(n=30)
+        bob = LWE_amort(n=40)
         
-        message = "SYN"
+        message = "0110110011"
         cipher = alice.enc(message, bob.getPublicKey())
         plain = bob.dec(cipher)
         self.assertEqual(message, plain)
         
-        message = "ACK"
+        message = "1010111100"
         cipher = bob.enc(message, alice.getPublicKey())
         plain = alice.dec(cipher)
         self.assertEqual(message, plain)

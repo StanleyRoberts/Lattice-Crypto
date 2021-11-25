@@ -47,7 +47,7 @@ CLI : runs a command-line interface of LWE
 # In[3]:
 
 
-def CLI(choice="y"):
+def CLI():
     """
         A very basic linear CLI walkthrough ofan LWE interaction
         
@@ -58,13 +58,22 @@ def CLI(choice="y"):
             determines if CLI is run in bitmode, a value other than the string 'y' runs CLI in full mode
     
     """
+    print("Run CLI in bit-mode? (y/n)")
+    choice = input()
+    
+    while (choice not in ["y", "n"]):
+        print("Did not understand input, please try again:")
+        choice = input()
     
     if choice=="y": print("Notice! Running in bit-mode")
     print("Running LWE command-line interface for messaging from Alice to Bob\nInstanciating LWE...\n")
-    
-    alice = LWE_PKE.LWE(n=10)
-    bob = LWE_PKE.LWE(n=10)
-    
+    alice = bob = None
+    if choice == "y":
+        alice = LWE_PKE.LWE(n=10)
+        bob = LWE_PKE.LWE(n=10)
+    else:
+        alice = LWE_PKE.LWE_amort(n=10)
+        bob = LWE_PKE.LWE_amort(n=10)
     apk = alice.getPublicKey()
     bpk = bob.getPublicKey()
     
@@ -74,25 +83,20 @@ def CLI(choice="y"):
     print(bpk)
     
     print("\n\nWhat message would you like Alice to encrypt?")
-    
     message = input()
-    if choice=="y":
-        while message not in ["0", "1"]:
-            print("not a bit, please try again:")
-            message = input()
-        message = int(message)
+    
+    while not all(b in message for b in ["0", "1"]):
+        print("not a bit(string), please try again:")
+        message = input()
         
     print("\nEncrypting message...")
-    cipher = None
-    if choice=="y": cipher = alice.enc(message, bpk)
-    else: cipher = alice.encString()
+    cipher = alice.enc(message, bpk)
+
     print("\nAlice's ciphertext:")
     print(cipher)
      
     print("\nDecrypting message...")
-    plain = None
-    if choice=="y": plain = bob.dec(cipher)
-    else: plain = bob.decMatrix()
+    plain = bob.dec(cipher)
     print("\nBob's decrypted plaintext:")
     print(plain)
     
@@ -103,15 +107,7 @@ def CLI(choice="y"):
 
 
 if __name__ == '__main__':
-    
-    print("Run CLI in bit-mode? (y/n)")
-    choice = input()
-    
-    while (choice not in ["y", "n"]):
-        print("Did not understand input, please try again:")
-        choice = input()
-        
-    CLI(choice)
+    CLI()
         
 
 
