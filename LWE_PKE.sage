@@ -14,7 +14,7 @@
 # -----------
 # To support modularization we explicitly import the sage functions we use, rather than relying on the sage interpreter to resolve them
 
-# In[1]:
+# In[5]:
 
 
 import copy
@@ -45,7 +45,7 @@ from sage.misc.functional import lift
 # see: 'A Framework to Select Parameters for Lattice-Based Cryptography'
 # and 'Better Key Sizes (and Attacks) for LWE-Based Encryption'
 
-# In[2]:
+# In[6]:
 
 
 """
@@ -72,7 +72,7 @@ cipherText : An LWE ciphertext of form (a, b) where a is a vector and b an integ
 # 
 # Smaller classes to assist in implementing the LWE system
 
-# In[29]:
+# In[56]:
 
 
 class publicKey:
@@ -157,7 +157,7 @@ class publicKey_amort(publicKey):
         sagemath vector
             the appropriate A vector.
         """
-        return self.a.row(i)
+        return self.a.T.row(i)
         
     def getB(self, i):
         """
@@ -175,9 +175,9 @@ class publicKey_amort(publicKey):
         """
         return self.b.row(i)
     
-    def geeSampleNo(self): return None
+    def getSampleNo(self): return self.b.ncols()
     
-    def getModulus(self): return q
+    def getModulus(self): return self.q
     
     def __str__(self):
         return self.a.__str__() + "\n\n" + self.b.__str__() + " mod: " + self.q.__str__()
@@ -190,8 +190,8 @@ class cipherText:
     ----------
     a : sagemath vector
         vector part of pair
-    b : int
-        integer part of pair
+    b : sagemath vector
+        integer part of pair, or vector for an amortized ciphertext
     
     '''
     def __init__(self, a, b):
@@ -201,6 +201,7 @@ class cipherText:
     def __str__(self):
         return "[" + self.a.__str__() + ", " + self.b.__str__() + "]"
     
+    
 
 
 # LWE Implementation
@@ -208,7 +209,7 @@ class cipherText:
 # 
 # Main implementation of LWE PKE system with encryption and decryption
 
-# In[33]:
+# In[63]:
 
 
 class LWE:
@@ -285,6 +286,7 @@ class LWE:
         """
         if bit not in ["1", "0"]:
             raise ValueError("Not a single bit value")
+        bit=int(bit)
         
         sample_size = key.getSampleNo()
         q = key.getModulus()
@@ -293,7 +295,7 @@ class LWE:
         for i in subset:
             a += key.getA(i)
             b += key.getB(i)
-        if bit=="1":
+        if bit==1:
             b += math.floor(q/2)
             
         return cipherText(a%q, b%q)
@@ -340,7 +342,7 @@ class LWE_amort(LWE):
     def __init__(self, n=512, q=None, m=None, x=None, l=10):
         self.n, self.q, self.m, self.x, self.l = n, q, m, x, l
         if q==None:
-            self.q = random_prime((2*self.n**2), True, (self.n**2)) 
+            self.q = random_prime((2*self.n**2), True, (self.n**2))
         if m==None:
             self.m = ((self.n+1)*self.q.log(prec=100)).integer_part()
         if x==None:
@@ -352,10 +354,10 @@ class LWE_amort(LWE):
         self._pk = self.__genPublicKey() #public key
         
     def __genPublicKey(self):
-        a = matrix([self.VS.random_element() for i in range(self.m)])
+        a = matrix([self.VS.random_element() for i in range(self.m)]).T
         x = matrix(GF(self.q), (vector([self.x() for i in range(self.l)]) for i in range(self.m)))
-        p = (self._s*a.T)+x.T
-        return publicKey_amort(a, p, self.q)
+        p = (self._s*a)+x.T
+        return publicKey_amort(a, p.T, self.q)
     
     def getPublicKey(self):
         """
@@ -383,6 +385,16 @@ class LWE_amort(LWE):
         cipherText
             object containing vectors a, b, which represents ciphertext of the bitstring)
         """
+        q = apk.getModulus()
+        v = vector(GF(q), [int(i) for i in bitstring])
+        
+        subset = Subsets(apk.getSampleNo()-1).random_element()
+        a, b = 0, 0
+        for i in subset:
+            a += apk.getA(i)
+            b += apk.getB(i)
+        b += v*math.floor(q/2)
+        return cipherText(a%q, b%q)
     
     def dec(self, a):
         """
@@ -396,9 +408,27 @@ class LWE_amort(LWE):
         -------
         string
             decrypted bit-string
+            
+            
+        testval = lift(pair.b-pair.a.inner_product(self._s))
+        compval = math.floor(self.q/2)
+        
+        if (min(0, compval, key = lambda x: abs(x-testval))==0): return 0
+        return 1
         """
-alice = LWE_amort(n=20)
-print(alice.getPublicKey())
+        d = a.b - self._s*a.a
+        gen = lambda i: min(0, math.floor(self.q/2), key = lambda x: x-d[i]==0)
+        v = vector([1 if gen(i)==0 else 0 for i in range(0, self.l)])
+        return v
+        
+        
+alice = LWE_amort(n=100)
+bob = LWE_amort(n=100)
+message = "1000100111"
+cipher = alice.enc(message, bob.getPublicKey())
+print(cipher)
+plain = bob.dec(cipher)
+print(plain)
 
 
 # Unit Tests
