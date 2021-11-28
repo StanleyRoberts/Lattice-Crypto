@@ -13,7 +13,7 @@
 # Imports
 # -----------
 
-# In[1]:
+# In[ ]:
 
 
 import import_ipynb
@@ -25,7 +25,7 @@ import LWE_PKE
 # -----------------
 # To model a 'singleton' CLI object in a Pythonic way we define a module that provides a function for CLI.
 
-# In[2]:
+# In[ ]:
 
 
 """
@@ -44,7 +44,7 @@ CLI : runs a command-line interface of LWE
 """
 
 
-# In[3]:
+# In[ ]:
 
 
 def CLI():
@@ -65,15 +65,15 @@ def CLI():
         print("Did not understand input, please try again:")
         choice = input()
     
-    if choice=="y": print("Notice! Running in bit-mode")
+    if choice=="y":
+        print("Notice! Running in bit-mode")
+        choice=False
+    else: choice=True
     print("Running LWE command-line interface for messaging from Alice to Bob\nInstanciating LWE...\n")
     alice = bob = None
-    if choice == "y":
-        alice = LWE_PKE.LWE(n=10)
-        bob = LWE_PKE.LWE(n=10)
-    else:
-        alice = LWE_PKE.LWE_amort(n=10)
-        bob = LWE_PKE.LWE_amort(n=10)
+    alice = LWE_PKE.createLWE(n=10, mb=choice)
+    bob = LWE_PKE.createLWE(n=10, mb=choice)
+
     apk = alice.getPublicKey()
     bpk = bob.getPublicKey()
     
@@ -85,7 +85,7 @@ def CLI():
     print("\n\nWhat message would you like Alice to encrypt?")
     message = input()
     
-    while not all(b in message for b in ["0", "1"]):
+    while not all(b in ["0", "1"] for b in message):
         print("not a bit(string), please try again:")
         message = input()
         
@@ -100,25 +100,14 @@ def CLI():
     print("\nBob's decrypted plaintext:")
     print(plain)
     
-    print("\nMessage decrypted, terminating...")
+    input("\nMessage decrypted, Press enter to terminate...")
 
 
-# In[4]:
+# In[ ]:
 
 
 if __name__ == '__main__':
     CLI()
-        
 
 
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
+# # 

@@ -14,7 +14,7 @@
 # -----------
 # To support modularization we explicitly import the sage functions we use, rather than relying on the sage interpreter to resolve them
 
-# In[1]:
+# In[ ]:
 
 
 import copy
@@ -45,7 +45,7 @@ from sage.misc.functional import lift
 # see: 'A Framework to Select Parameters for Lattice-Based Cryptography'
 # and 'Better Key Sizes (and Attacks) for LWE-Based Encryption'
 
-# In[2]:
+# In[ ]:
 
 
 """
@@ -72,12 +72,12 @@ cipherText : An LWE ciphertext of form (a, b) where a is a vector and b an integ
 # 
 # Smaller classes to assist in implementing the LWE system
 
-# In[28]:
+# In[ ]:
 
 
 class publicKey:
     """
-    Creates a Public Key object
+    Represents a Public Key object
     
     Uses a matrix to create an LWE public key whose rows (excluding last element)
     are the vectors Ai and the last element in each row is the corresponding Bi.
@@ -130,16 +130,29 @@ class publicKey:
         temp = list(self.pk.row(i))
         return temp.pop()
     
-    def getSampleNo(self):
-        return self.pk.nrows()
+    def getSampleNo(self): return self.pk.nrows()
     
-    def getModulus(self):
-        return self.q
+    def getModulus(self): return self.q
     
-    def __str__(self):
-        return self.pk.__str__() + " mod: " + self.q.__str__()
+    def __str__(self): return self.pk.__str__() + " mod: " + self.q.__str__()
     
 class publicKey_amort(publicKey):
+    """
+    Represents an amortised Public Key object
+    
+    Creates an LWE amortised public key consisting of two matrices A and P
+    
+    Parameters
+    ----------
+    
+    a : sagemath matrix
+        A matrix for public key.
+    p : sagemath matrix
+        P matrix for public key.
+    q : int
+        public key modulus
+    
+    """
     def __init__(self, a, p, q):
         self.a, self.b, self.q = a, p, q
         
@@ -177,14 +190,14 @@ class publicKey_amort(publicKey):
     
     def getSampleNo(self): return self.b.ncols()
     
-    def getModulus(self): return self.q
+    def getL(self): return self.b.ncols()
     
     def __str__(self):
         return self.a.__str__() + "\n\n" + self.b.__str__() + " mod: " + self.q.__str__()
     
 class cipherText:
     '''
-    Generates an LWE ciphertext pair.
+    Represents an LWE ciphertext pair.
     
     Parameters
     ----------
@@ -209,7 +222,7 @@ class cipherText:
 # 
 # Main implementation of LWE PKE system with encryption and decryption
 
-# In[47]:
+# In[ ]:
 
 
 class LWE:
@@ -359,17 +372,6 @@ class LWE_amort(LWE):
         p = (self._s*a)+x.T
         return publicKey_amort(a, p.T, self.q)
     
-    def getPublicKey(self):
-        """
-        Return public key associated with the LWE object
-        
-        Returns
-        -------
-        publicKey_amort
-            amortized public key object
-        """
-        return copy.deepcopy(self._pk)
-    
         
     def enc(self, bitstring, apk):
         """
@@ -385,6 +387,12 @@ class LWE_amort(LWE):
         cipherText
             object containing vectors a, b, which represents ciphertext of the bitstring)
         """
+        for bit in bitstring:
+            if bit not in ["1", "0"]:
+                raise ValueError("Not a single bit value")
+        if len(bitstring) != apk.getL():
+            raise ValueError("bitstring incorrect size")
+        
         q = apk.getModulus()
         v = vector(GF(q), [int(i) for i in bitstring])
         
@@ -420,19 +428,39 @@ class LWE_amort(LWE):
         gen = lambda i: min(0, math.floor(self.q/2), key = lambda x: x-d[i]==0)
         v = vector([1 if gen(i)==0 else 0 for i in range(0, self.l)])
         return v
+    
+    def getL(self): return self._l
         
 def createLWE(n=512, mb=False, q=None, m=None, x=None, l=10):
+    """
+    Facade for creating an LWE object
+    
+    Creates either a single bit or amortized LWE instnace
+    
+    Parameters
+    ----------
+    n : int
+        security parameter which defines dimension, defaults to 512
+    mb : boolean
+        if True creates an amortized LWE object, else creates singlebit
+    q : int
+        modulus, defaults to a random prime in the range of n^2 to 2n^2
+    m : int
+        desired number of samples for the public key, defaults to (n+1)log(q)
+    x : callable object
+        error distribution, defaults to a discrete gaussian with standard deviation 1/sqrt(n)log^2(n)
+    l : int
+        plaintext size for amortized enc/dec (disregarded if single bit)
+        
+    Returns
+    -------
+    LWE object
+        and LWE object with function enc, dec and getPublicKey functions. See classes LWE and LWE_amort for details.
+    
+    """
     if mb:
         return LWE_amort(n, q, m, x, l)
     else: return LWE(n, q, m, x)
-    
-alice = createLWE(100, True)
-bob = createLWE(100, True)
-message = "1010100110"
-cipher = alice.enc(message, bob.getPublicKey())
-print(cipher)
-plain = bob.dec(cipher)
-print(plain)
 
 
 # Unit Tests
@@ -441,7 +469,7 @@ print(plain)
 # Unit tests for module, including testing helper classes and full LWE implementation, executed when running the below cell (or 
 # running the notebook file directly as a python/sage file)
 
-# In[50]:
+# In[ ]:
 
 
 class TestHelpers(unittest.TestCase):
@@ -457,8 +485,21 @@ class TestHelpers(unittest.TestCase):
         for i in range(0, m-1):
             self.assertEqual(A.row(i), key.getA(i))
             self.assertEqual(B[i, 0], key.getB(i))
-            self.assertEqual(q, key.getModulus())
+        self.assertEqual(q, key.getModulus())
 
+    def test_publicKey_adv(self): # generate some random matrix and test get functions work as expected
+        m, n, l = (randint(1, 100) for x in range(3))
+        q = random_prime(2*n**2, n**2) 
+        A = random_matrix(GF(q), m, n)
+        B = random_matrix(GF(q), m, l)
+        
+        key = publicKey_amort(A, B, q)
+        
+        for i in range(0, n-1):
+            self.assertEqual(A.T.row(i), key.getA(i))
+        for i in range(0, m-1):
+            self.assertEqual(B.row(i), key.getB(i))
+        self.assertEqual(q, key.getModulus())
 
 class TestLWE(unittest.TestCase):
     
@@ -503,8 +544,8 @@ class TestLWE(unittest.TestCase):
         
     def test_LWE_amort(self): # test string based methods of LWE
         
-        alice = createLWE(30, True)
-        bob = createLWE(40, True)
+        alice = createLWE(80, True)
+        bob = createLWE(100, True)
         
         message = "0110110011"
         cipher = alice.enc(message, bob.getPublicKey())
