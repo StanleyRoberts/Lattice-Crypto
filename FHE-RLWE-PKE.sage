@@ -14,17 +14,19 @@
 # Imports
 # -----------
 
-# In[1]:
+# In[15]:
 
 
 import unittest
 import random
+from sage.stats.distributions.discrete_gaussian_polynomial import DiscreteGaussianDistributionPolynomialSampler
+from sage.stats.distributions.discrete_gaussian_integer import DiscreteGaussianDistributionIntegerSampler
 
 
 # FHE Class
 # ---------
 
-# In[2]:
+# In[208]:
 
 
 class FHE():
@@ -40,14 +42,31 @@ class FHE():
     sec_lambda : int
         security parameter which defines dimension, defaults to 512
     """
-    def __init__(self, sec_lambda=256):
-        R.<x> = PolynomialRing(ZZ)
-        self.R = QuotientRing(R, R.ideal(x^sec_lambda + 1))
+    def __init__(self, sec_lambda=128):
+        log_delta = 1.8/(sec_lambda+110)
+        Hf = 1 #for simplicity assume parameterized family x^n+1
+        t = 2 #plaintext space
+        h = 63 #hamming weight
+        alpha, beta = 3.8, 9.2 #with e=2^-64
+        d=2^10 #set d=2^k (and q=2^n)
+        L_min = ceil(log(t * 2 * (Hf*h + 1) + 0.5, 2))
         
-        self._sk = self.SecretKeyGen(self.R)
+
+        top = log(4*alpha*beta*t^(L_min-1),2) + (2*L_min+1)*log(d,2)
+        bot = 2*sqrt(d*log_delta)
+        n=ceil((top/bot)^2)
+        self.q = 2^n #coefficient modulus
         
+        R.<x> = PolynomialRing(Zmod(self.q))
+        self.R = QuotientRing(R, R.ideal(x^d + 1)) #univariate polynomial ring with f(x)=x^n+1 
         
-    def SecretKeyGen(self, R):
+        sigma=ceil((alpha*self.q)/2^(2*sqrt(d*log_delta*n)))      
+        self.chi = DiscreteGaussianDistributionPolynomialSampler(R, d, sigma)
+        
+        self._sk = self.SecretKeyGen()
+        self._pk = self.PublicKeyGen(self._sk)
+        
+    def SecretKeyGen(self):
         """
         Generates a (monic polynomial) secret key
         
@@ -60,15 +79,34 @@ class FHE():
         secret_key
             a monic polynomial in R
         """
-        r_sam = R.random_element()
-        monic = R.lift(r_sam)%2
-        return R(monic)
+        ZZx = PolynomialRing(ZZ, 'x')
+        r_sam = self.R.random_element().lift()
+        monic = ZZx(r_sam)%2
+        return self.R(monic)
+    
+    def PublicKeyGen(self, sk):
+        """
+        Generates a public key pair of polynomials
+        
+        Parameters
+        ----------
+        sk : secret key to generate public key from
+        
+        Returns
+        -------
+        public_key
+            a pair of two polynomials in R (a, b) where b is some random polynomial
+            and a is: b modified by the secret key and adjusted by some error
+        """
+        a = self.R.random_element()
+        e = self.chi()
+        return (self.R(-a*sk+e), a)
 
 
-# In[ ]:
+# In[209]:
 
 
-
+fhe = FHE(128)
 
 
 # Unit Tests
