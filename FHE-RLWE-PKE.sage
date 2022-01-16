@@ -14,7 +14,7 @@
 # Imports
 # -----------
 
-# In[15]:
+# In[3]:
 
 
 import unittest
@@ -23,15 +23,28 @@ from sage.stats.distributions.discrete_gaussian_polynomial import DiscreteGaussi
 from sage.stats.distributions.discrete_gaussian_integer import DiscreteGaussianDistributionIntegerSampler
 
 
+# In[4]:
+
+
+def param_gen(sec, n):
+    '''
+    Generates appropriate parameters according to FHE standards
+    '''
+    table = [[29, 21, 16], [56, 39, 31], [111, 77, 60], [220, 154, 120], [440, 307, 239], [880, 612, 478]]
+    k = 0 if sec==128 else 1 if sec==192 else 2
+    m = log(n,2)-10
+    return table[m][k]
+
+
 # FHE Class
 # ---------
 
-# In[208]:
+# In[9]:
 
 
-class FHE():
+class SHE():
     """
-    Constructs a Fully Homomorphic Encryption Enviroment
+    Constructs a (Leveled) Fully Homomorphic Encryption Enviroment
     
     Constructs a new encryption environment who can be used as
     an LWE_PKE object but also provides addition and multiplication
@@ -42,26 +55,18 @@ class FHE():
     sec_lambda : int
         security parameter which defines dimension, defaults to 512
     """
-    def __init__(self, sec_lambda=128):
-        log_delta = 1.8/(sec_lambda+110)
-        Hf = 1 #for simplicity assume parameterized family x^n+1
-        t = 2 #plaintext space
-        h = 63 #hamming weight
-        alpha, beta = 3.8, 9.2 #with e=2^-64
-        d=2^10 #set d=2^k (and q=2^n)
-        L_min = ceil(log(t * 2 * (Hf*h + 1) + 0.5, 2))
+    def __init__(self, sec_lambda=128, n=1024, error_dist=None):
+        k = param_gen(sec_lambda, n)
+        self.q = randint(2^k, 2^k+1)
         
-
-        top = log(4*alpha*beta*t^(L_min-1),2) + (2*L_min+1)*log(d,2)
-        bot = 2*sqrt(d*log_delta)
-        n=ceil((top/bot)^2)
-        self.q = 2^n #coefficient modulus
-        
+        #TODO introduce balance function for ring elements
         R.<x> = PolynomialRing(Zmod(self.q))
-        self.R = QuotientRing(R, R.ideal(x^d + 1)) #univariate polynomial ring with f(x)=x^n+1 
+        self.R = QuotientRing(R, R.ideal(x^n + 1)) #univariate polynomial ring with f(x)=x^n+1 
         
-        sigma=ceil((alpha*self.q)/2^(2*sqrt(d*log_delta*n)))      
-        self.chi = DiscreteGaussianDistributionPolynomialSampler(R, d, sigma)
+        self.chi = error_dist
+        if not error_dist:
+            sigma=8/sqrt(2*pi)
+            self.chi = DiscreteGaussianDistributionPolynomialSampler(self.R, n, sigma)
         
         self._sk = self.SecretKeyGen()
         self._pk = self.PublicKeyGen(self._sk)
@@ -101,9 +106,40 @@ class FHE():
         a = self.R.random_element()
         e = self.chi()
         return (self.R(-a*sk+e), a)
+    
+    
+class FHE(SHE):
+    '''
+    Implements a true fully homomorphic encryption enviroment using bootstrapping
+    This class only implements parameter selection and bootstrapping should be done externally.
+    '''
+    def __init(self):
+        log_delta = 1.8/(sec_lambda+110)
+        Hf = 1 #for simplicity assume parameterized family x^n+1
+        t = 2 #plaintext space
+        h = 63 #hamming weight
+        alpha, beta = 3.8, 9.2 #with e=2^-64
+        d=2^10 #set d=2^k (and q=2^n)
+        L_min = ceil(log(t * 2 * (Hf*h + 1) + 0.5, 2))
+        
+
+        top = log(4*alpha*beta*t^(L_min-1),2) + (2*L_min+1)*log(d,2)
+        bot = 2*sqrt(d*log_delta)
+        n=ceil((top/bot)^2)
+        self.q = 2^n #coefficient modulus
+        
+        R.<x> = PolynomialRing(Zmod(self.q))
+        self.R = QuotientRing(R, R.ideal(x^d + 1)) #univariate polynomial ring with f(x)=x^n+1 
+        
+        sigma=ceil((alpha*self.q)/2^(2*sqrt(d*log_delta*n)))      
+        self.chi = DiscreteGaussianDistributionPolynomialSampler(R, d, sigma)
+        
+        self._sk = self.SecretKeyGen()
+        self._pk = self.PublicKeyGen(self._sk)
+        
 
 
-# In[209]:
+# In[10]:
 
 
 fhe = FHE(128)
