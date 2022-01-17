@@ -14,7 +14,7 @@
 # Imports
 # -----------
 
-# In[3]:
+# In[4]:
 
 
 import unittest
@@ -23,7 +23,7 @@ from sage.stats.distributions.discrete_gaussian_polynomial import DiscreteGaussi
 from sage.stats.distributions.discrete_gaussian_integer import DiscreteGaussianDistributionIntegerSampler
 
 
-# In[4]:
+# In[14]:
 
 
 def param_gen(sec, n):
@@ -35,11 +35,22 @@ def param_gen(sec, n):
     m = log(n,2)-10
     return table[m][k]
 
+def poly(l):
+    '''
+    Given a list l composed of elements [l0, l1, l2,...,li], returns the polynomial 'form' of list as:
+    l0 * x^i + l1 *x^i-1 + ... + li + x^0
+    '''
+    poly = 0
+    for i in range(0, len(l)):
+        poly += l[i]*x^(len(l)-i-1)
+    return poly
+    
+
 
 # FHE Class
 # ---------
 
-# In[9]:
+# In[10]:
 
 
 class SHE():
@@ -55,9 +66,10 @@ class SHE():
     sec_lambda : int
         security parameter which defines dimension, defaults to 512
     """
-    def __init__(self, sec_lambda=128, n=1024, error_dist=None):
+    def __init__(self, sec_lambda=128, n=1024, error_dist=None, t=2):
         k = param_gen(sec_lambda, n)
-        self.q = randint(2^k, 2^k+1)
+        self.q, self.t = randint(2^k, 2^k+1), t
+        self.delta = floor(self.q/self.t)
         
         #TODO introduce balance function for ring elements
         R.<x> = PolynomialRing(Zmod(self.q))
@@ -68,10 +80,18 @@ class SHE():
             sigma=8/sqrt(2*pi)
             self.chi = DiscreteGaussianDistributionPolynomialSampler(self.R, n, sigma)
         
-        self._sk = self.SecretKeyGen()
-        self._pk = self.PublicKeyGen(self._sk)
+        self._sk = self._SecretKeyGen()
+        self._pk = self._PublicKeyGen(self._sk)
         
-    def SecretKeyGen(self):
+    def getPublicKey(self): return self._pk
+    
+    def getCoeffMod(self): return self.q
+    
+    def getPlaintextSpace(self): return (self.t, getCoeffMod())
+    
+    def getCircuitDepth(self): pass #TODO
+        
+    def _SecretKeyGen(self):
         """
         Generates a (monic polynomial) secret key
         
@@ -89,7 +109,7 @@ class SHE():
         monic = ZZx(r_sam)%2
         return self.R(monic)
     
-    def PublicKeyGen(self, sk):
+    def _PublicKeyGen(self, sk):
         """
         Generates a public key pair of polynomials
         
@@ -107,6 +127,30 @@ class SHE():
         e = self.chi()
         return (self.R(-a*sk+e), a)
     
+    def encrypt(pk, m):
+        """
+        Encrypts a plaintext list using public key pk
+        
+        Parameters
+        ----------
+        pk : public key to encrypt using
+        
+        Returns
+        -------
+        ciphertext pair
+            a pair of two polynomials who are a BFV ciphertext
+        """
+        m = self.R(poly(m))
+        p0, p1 = pk
+        
+        ZZx = PolynomialRing(ZZ, 'x')
+        u = self.R(ZZx(self.R.random_element().lift())%2)
+        e1,e2 = self.chi(), self.chi()
+        
+        a = p0*u + e1 + self.delta*m
+        b = p1*u + e2
+        return a, b
+        
     
 class FHE(SHE):
     '''
@@ -139,7 +183,7 @@ class FHE(SHE):
         
 
 
-# In[10]:
+# In[11]:
 
 
 fhe = FHE(128)
