@@ -14,7 +14,7 @@
 # Imports
 # -----------
 
-# In[4]:
+# In[1]:
 
 
 import unittest
@@ -23,12 +23,17 @@ from sage.stats.distributions.discrete_gaussian_polynomial import DiscreteGaussi
 from sage.stats.distributions.discrete_gaussian_integer import DiscreteGaussianDistributionIntegerSampler
 
 
-# In[14]:
+# Helpers
+# -----------
+
+# In[46]:
 
 
 def param_gen(sec, n):
     '''
     Generates appropriate parameters according to FHE standards
+    sec = [128, 192, 256]
+    n = [1024, 2048, 4096, 8192, 16384, 32768]
     '''
     table = [[29, 21, 16], [56, 39, 31], [111, 77, 60], [220, 154, 120], [440, 307, 239], [880, 612, 478]]
     k = 0 if sec==128 else 1 if sec==192 else 2
@@ -50,10 +55,10 @@ def poly(l):
 # FHE Class
 # ---------
 
-# In[10]:
+# In[47]:
 
 
-class SHE():
+class FHE():
     """
     Constructs a (Leveled) Fully Homomorphic Encryption Enviroment
     
@@ -68,10 +73,9 @@ class SHE():
     """
     def __init__(self, sec_lambda=128, n=1024, error_dist=None, t=2):
         k = param_gen(sec_lambda, n)
-        self.q, self.t = randint(2^k, 2^k+1), t
+        self.q, self.t, self.n = randint(2^k, 2^(k+1)), t, n
         self.delta = floor(self.q/self.t)
         
-        #TODO introduce balance function for ring elements
         R.<x> = PolynomialRing(Zmod(self.q))
         self.R = QuotientRing(R, R.ideal(x^n + 1)) #univariate polynomial ring with f(x)=x^n+1 
         
@@ -104,10 +108,10 @@ class SHE():
         secret_key
             a monic polynomial in R
         """
-        ZZx = PolynomialRing(ZZ, 'x')
-        r_sam = self.R.random_element().lift()
-        monic = ZZx(r_sam)%2
-        return self.R(monic)
+        monic = []
+        for i in range(0, self.n):
+            monic.append(choice([1, 0, self.q]))
+        return self.R(poly(monic))
     
     def _PublicKeyGen(self, sk):
         """
@@ -127,13 +131,15 @@ class SHE():
         e = self.chi()
         return (self.R(-a*sk+e), a)
     
-    def encrypt(pk, m):
+    def encrypt(self, pk, m):
         """
         Encrypts a plaintext list using public key pk
         
         Parameters
         ----------
         pk : public key to encrypt using
+        
+        m : plaintext list to encrypt
         
         Returns
         -------
@@ -144,15 +150,34 @@ class SHE():
         p0, p1 = pk
         
         ZZx = PolynomialRing(ZZ, 'x')
-        u = self.R(ZZx(self.R.random_element().lift())%2)
+        u = self._SecretKeyGen()
         e1,e2 = self.chi(), self.chi()
         
         a = p0*u + e1 + self.delta*m
         b = p1*u + e2
         return a, b
-        
     
-class FHE(SHE):
+    def decrypt(self, c):
+        """
+        Decrypt a ciphertext pair using instances secret key
+        
+        Parameters
+        ----------
+        c : ciphertext pair to decrypt
+        
+        Returns
+        -------
+        list
+            plaintext list
+        """
+        p = c[0]+c[1]*self._sk
+        p = p.lift().coefficients(sparse=False)
+        nl = []
+        for i in p:
+            nl.append(round(QQ(self.t)*QQ(i)/QQ(self.q)))
+        return list(map(lambda x: x%self.t, nl))[::-1]
+    
+class FHE_b(FHE):
     '''
     Implements a true fully homomorphic encryption enviroment using bootstrapping
     This class only implements parameter selection and bootstrapping should be done externally.
@@ -183,16 +208,22 @@ class FHE(SHE):
         
 
 
-# In[11]:
+# In[49]:
 
 
 fhe = FHE(128)
+print(fhe.getCoeffMod())
+cipher = fhe.encrypt(fhe.getPublicKey(), [1, 0, 0, 1, 1, 0, 1, 1])
+print(cipher[0])
+print(cipher[1])
+plain = fhe.decrypt(cipher)
+print(plain)
 
 
 # Unit Tests
 # --------------
 
-# In[3]:
+# In[ ]:
 
 
 class testFHE(unittest.TestCase):
