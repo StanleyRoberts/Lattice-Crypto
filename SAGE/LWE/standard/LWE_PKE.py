@@ -1,26 +1,6 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# Lattice LWE Implementation
-# =======================
-# Part of a project by Stanley Roberts on Lattice Cryptography  
-# This code is an implementation of *Regevs* public key cryptography mechanism using LWE
-# 
-# &nbsp;
-# &nbsp;
-# &nbsp;
-# 
-# Imports
-# -----------
-# To support modularization we explicitly import the sage functions we use, rather than relying on the sage interpreter to resolve them
-
-# In[ ]:
-
-
 import copy
 import math
 import random
-import unittest
 
 from sage.stats.distributions.discrete_gaussian_integer import DiscreteGaussianDistributionIntegerSampler
 from sage.modules.free_module_element import vector
@@ -33,20 +13,7 @@ from sage.matrix.constructor import matrix
 from sage.combinat.subset import Subsets
 from sage.rings.finite_rings.integer_mod_ring import Integers
 from sage.misc.functional import lift
-
-
-# Module Info
-# -----------------
-# 
-# 
-# All default parameters are generated as suggested in Regev's paper but can be
-# smaller/different as long as they adhere to sufficient security constraints
-# 
-# see: 'A Framework to Select Parameters for Lattice-Based Cryptography'
-# and 'Better Key Sizes (and Attacks) for LWE-Based Encryption'
-
-# In[ ]:
-
+from sage.symbolic.expression import Expression
 
 """
 Name
@@ -65,15 +32,6 @@ publicKey : Public key data type for LWE
 LWE : object representing an LWE system
 cipherText : An LWE ciphertext of form (a, b) where a is a vector and b an integer
 """
-
-
-# Helper Classes
-# ---------------------
-# 
-# Smaller classes to assist in implementing the LWE system
-
-# In[ ]:
-
 
 class publicKey:
     """
@@ -214,17 +172,6 @@ class cipherText:
     def __str__(self):
         return "[" + self.a.__str__() + ", " + self.b.__str__() + "]"
     
-    
-
-
-# LWE Implementation
-# -----------------------------
-# 
-# Main implementation of LWE PKE system with encryption and decryption
-
-# In[ ]:
-
-
 class LWE:
     """
     Constructs an LWE enviroment.
@@ -283,7 +230,7 @@ class LWE:
         vector_list = [self.__LWEsample() for x in range(self.m)]
         return publicKey(matrix(vector_list), self.q)
 
-    def enc(self, bit, key):
+    def encrypt(self, bit, key):
         """
         Encrypts a bit using the given key
         
@@ -313,7 +260,7 @@ class LWE:
             
         return cipherText(a%q, b%q)
     
-    def dec(self, pair):
+    def decrypt(self, pair):
         """
         Decrypts a bit which has been encrypted using the instance's secret key
         
@@ -373,7 +320,7 @@ class LWE_amort(LWE):
         return publicKey_amort(a, p.T, self.q)
     
         
-    def enc(self, bitstring, apk):
+    def encrypt(self, bitstring, apk):
         """
         Encrypts a bit-string using the given (amortized) key
         
@@ -404,7 +351,7 @@ class LWE_amort(LWE):
         b += v*math.floor(q/2)
         return cipherText(a%q, b%q)
     
-    def dec(self, a):
+    def decrypt(self, a):
         """
         Decrypts a cipherText using this instance' secret key
         
@@ -461,108 +408,3 @@ def createLWE(n=512, mb=False, q=None, m=None, x=None, l=10):
     if mb:
         return LWE_amort(n, q, m, x, l)
     else: return LWE(n, q, m, x)
-
-
-# Unit Tests
-# --------------
-# 
-# Unit tests for module, including testing helper classes and full LWE implementation, executed when running the below cell (or 
-# running the notebook file directly as a python/sage file)
-
-# In[ ]:
-
-
-class TestHelpers(unittest.TestCase):
-    
-    def test_publicKey(self): # generate some random matrix and test get functions work as expected
-        m, n = (randint(1, 100) for x in range(2))
-        q = random_prime(2*n**2, n**2) 
-        A = random_matrix(GF(q), m, n-1)
-        B = random_matrix(GF(q), m, 1)
-        
-        key = publicKey(block_matrix(1, 2, [A, B]), q)
-        
-        for i in range(0, m-1):
-            self.assertEqual(A.row(i), key.getA(i))
-            self.assertEqual(B[i, 0], key.getB(i))
-        self.assertEqual(q, key.getModulus())
-
-    def test_publicKey_adv(self): # generate some random matrix and test get functions work as expected
-        m, n, l = (randint(1, 100) for x in range(3))
-        q = random_prime(2*n**2, n**2) 
-        A = random_matrix(GF(q), m, n)
-        B = random_matrix(GF(q), m, l)
-        
-        key = publicKey_amort(A, B, q)
-        
-        for i in range(0, n-1):
-            self.assertEqual(A.T.row(i), key.getA(i))
-        for i in range(0, m-1):
-            self.assertEqual(B.row(i), key.getB(i))
-        self.assertEqual(q, key.getModulus())
-
-class TestLWE(unittest.TestCase):
-    
-    def test_LWE_sampling(self): #ie private methods
-        n = 20
-        mod = random_prime(2*n**2, n**2) 
-        test = createLWE(n, q=mod)
-        pk = test.getPublicKey()
-        
-        # list of booleans where each value is true iff entry in public key i,j is less than modulus
-        testpk = [lift(pk.getA(i)[j]) < mod and lift(pk.getB(i)) < mod for i in range(0, pk.getSampleNo()) for j in range(0, n)]
-        
-        self.assertTrue(all(testpk))
-
-        
-    def test_LWE(self): #ie tests encryption and decryption pairs equal for a large sample
-        
-        alice = createLWE(n=80)
-        bob = createLWE(n=100)
-
-        tests = 10
-
-        # test alice enc, bob dec
-        success = True
-        pk = bob.getPublicKey()
-        for i in range (0, tests):
-            message = randint(0, 1)
-            cipher = alice.enc(message, pk)
-            plain = bob.dec(cipher)
-            if message != plain: success = False   
-        self.assertTrue(success)
-        
-        # test bob enc, alice dec
-        success = True
-        pk = alice.getPublicKey()
-        for i in range (0, tests):
-            message = randint(0, 1)
-            cipher = bob.enc(message, pk)
-            plain = alice.dec(cipher)
-            if message != plain: success = False
-        self.assertTrue(success)
-        
-    def test_LWE_amort(self): # test string based methods of LWE
-        
-        alice = createLWE(80, True)
-        bob = createLWE(100, True)
-        
-        message = "0110110011"
-        cipher = alice.enc(message, bob.getPublicKey())
-        plain = bob.dec(cipher)
-        self.assertEqual([int(i) for i in message], list(plain))
-        
-        message = "1010111100"
-        cipher = bob.enc(message, alice.getPublicKey())
-        plain = alice.dec(cipher)
-        self.assertEqual([int(i) for i in message], list(plain))
-
-if __name__ == '__main__':
-    unittest.main(argv=['-v'], verbosity=2, exit=False)
-
-
-# In[ ]:
-
-
-
-

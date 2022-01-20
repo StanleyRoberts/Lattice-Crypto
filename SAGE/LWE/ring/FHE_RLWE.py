@@ -1,33 +1,20 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# Fully Homomorphic Encryption
-# ==========================
-# 
-# This is a Fully Homomorphic Encryption system whose security is based on Ring-LWE.
-# This system is an implementation of the Fan-Vercauteren FHE mechanism using Gentry's bootstrapping
-# 
-# &nbsp;
-# &nbsp;
-# &nbsp;
-# 
-# Imports
-# -----------
-
-# In[6]:
-
-
-import unittest
 import random
+import math
 from sage.stats.distributions.discrete_gaussian_polynomial import DiscreteGaussianDistributionPolynomialSampler
 from sage.stats.distributions.discrete_gaussian_integer import DiscreteGaussianDistributionIntegerSampler
-
-
-# Helpers
-# -----------
-
-# In[7]:
-
+from sage.functions.log import log
+from sage.symbolic.constants import pi
+from sage.misc.functional import lift
+from sage.misc.prandom import randint
+from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
+from sage.rings.finite_rings.integer_mod_ring import Zmod
+from sage.rings.quotient_ring import QuotientRing
+from sage.functions.other import sqrt
+from sage.misc.prandom import choice
+from sage.calculus.var import var
+from sage.rings.integer_ring import ZZ
+from sage.rings.rational_field import QQ
+from sage.misc.functional import round
 
 def param_gen(sec, n):
     '''
@@ -46,17 +33,10 @@ def poly(l):
     l0 * x^i + l1 *x^i-1 + ... + li + x^0
     '''
     poly = 0
+    x = var('x')
     for i in range(0, len(l)):
-        poly += l[i]*x^(len(l)-i-1)
+        poly += l[i]*x**(len(l)-i-1)
     return poly
-    
-
-
-# FHE Class
-# ---------
-# For both security and simplicity reasons we operate on the standard polynomial Ring ZZx/f(x) where f(x) = x^n + 1
-
-# In[31]:
 
 
 class FHE():
@@ -76,11 +56,12 @@ class FHE():
     """
     def __init__(self, sec_lambda=128, n=4096, error_dist=None, t=2):
         lq = param_gen(sec_lambda, n)
-        self.q, self.t, self.n = randint(2^lq, 2^(lq+1)), t, n
-        self.delta = floor(self.q/self.t)
+        self.q, self.t, self.n = randint(2**lq, 2**(lq+1)), t, n
+        self.delta = math.floor(self.q/self.t)
         
-        R.<x> = PolynomialRing(Zmod(self.q))
-        self.R = QuotientRing(R, R.ideal(x^n + 1)) #univariate polynomial ring with f(x)=x^n+1 
+        #R.<x> = PolynomialRing(Zmod(self.q))
+        R = PolynomialRing(Zmod(self.q), names=('x',)); (x,) = R._first_ngens(1)
+        self.R = QuotientRing(R, R.ideal(x**n + 1)) #univariate polynomial ring with f(x)=x^n+1 
         
         self.chi = error_dist
         if not error_dist:
@@ -98,7 +79,8 @@ class FHE():
     def getPlaintextSpace(self): return (self.t, getCoeffMod())
     
     def getCircuitDepth(self):
-        return floor((-(2*log(2) + log(9.2) + log(8/sqrt(2*pi)) - log(self.q) + log(self.n + 5/4)                 - log(self.t))/(log(self.n + 5/4) + log(self.n) + log(self.t))).n())
+        return math.floor((-(2*log(2) + log(9.2) + log(8/sqrt(2*pi)) - log(self.q) + log(self.n + 5/4)\
+                 - log(self.t))/(log(self.n + 5/4) + log(self.n) + log(self.t))).n())
         
     def _SecretKeyGen(self):
         """
@@ -136,7 +118,7 @@ class FHE():
         e = self.chi()
         return (self.R(-a*sk+e), a)
     
-    def encrypt(self, pk, m):
+    def encrypt(self, m, pk):
         """
         Encrypts a plaintext list using public key pk
         
@@ -193,67 +175,28 @@ class FHE_b(FHE):
         self.t = 2 #plaintext space
         h = 63 #hamming weight
         alpha, beta = 3.8, 9.2 #with e=2^-64
-        d=2^10 #set d=2^k (and q=2^n)
-        L_min = ceil(log(self.t * 2 * (Hf*h + 1) + 0.5, 2))
+        d=2**10 #set d=2^k (and q=2^n)
+        L_min = math.ceil(log(self.t * 2 * (Hf*h + 1) + 0.5, 2))
         
 
-        top = log(4*alpha*beta*self.t^(L_min-1),2) + (2*L_min+1)*log(d,2)
+        top = log(4*alpha*beta*self.t**(L_min-1),2) + (2*L_min+1)*log(d,2)
         bot = 2*sqrt(d*log_delta)
-        self.n= ceil((top/bot)^2)*2^n_scale
-        self.q = randint(2^self.n, 2^(self.n+1)) #coefficient modulus
-        self.delta = floor(self.q/self.t)
+        self.n= math.ceil((top/bot)**2)*2**n_scale
+        self.q = randint(2**self.n, 2**(self.n+1)) #coefficient modulus
+        self.delta = math.floor(self.q/self.t)
         
-        R.<x> = PolynomialRing(Zmod(self.q))
-        self.R = QuotientRing(R, R.ideal(x^d + 1)) #univariate polynomial ring with f(x)=x^n+1 
+        #R.<x> = PolynomialRing(Zmod(self.q))
+        R = PolynomialRing(Zmod(self.q), names=('x',)); (x,) = R._first_ngens(1)
+        self.R = QuotientRing(R, R.ideal(x**d + 1)) #univariate polynomial ring with f(x)=x^n+1 
         
-        sigma=ceil((alpha*self.q)/2^(2*sqrt(d*log_delta*self.n)))
+        sigma=math.ceil((alpha*self.q)/2**(2*sqrt(d*log_delta*self.n)))
         self.chi = DiscreteGaussianDistributionPolynomialSampler(R, d, sigma)
         
         
         self._sk = self._SecretKeyGen()
         self._pk = self._PublicKeyGen(self._sk)
-        
 
-
-# In[34]:
-
-
-fhe = FHE(128)
-print(fhe.getCoeffMod())
-cipher = fhe.encrypt(fhe.getPublicKey(), [1, 0, 0, 1, 1, 0, 1, 1])
-print(cipher[0])
-print(cipher[1])
-plain = fhe.decrypt(cipher)
-print(plain)
-depth = fhe.getCircuitDepth()
-print(depth)
-
-
-# Unit Tests
-# --------------
-
-# In[ ]:
-
-
-class testFHE(unittest.TestCase):
-    def test_secretKey(self):
-        n = randint(1, 512)
-        fhe = FHE(n)
-        key = fhe._sk.lift()
-        coef = key.coefficients(sparse=False)
-        for i in coef:
-            if abs(i) not in [1, -1, 0]:
-                self.fail("non-monic secret key")
-        self.assertLessEqual(key.degree(), n)
-        
-        
-
-if __name__ == '__main__':
-    unittest.main(argv=['-v'], verbosity=2, exit=False)
-
-
-# In[ ]:
-
-
-
-
+def createFHE(b=False, sec_lambda=128, n=4096, error_dist=None, t=2):
+    if b:
+        return FHE_b(sec_lambda, n, error_dist, t)
+    else: return FHE(sec_lambda)

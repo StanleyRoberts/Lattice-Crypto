@@ -1,32 +1,4 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# CLI for Lattice System
-# ==================
-# Part of a project by Stanley Roberts on Lattice Cryptography  
-# This code is a demonstration command-line interface using the LWE module
-# 
-# &nbsp;
-# &nbsp;
-# &nbsp;
-# 
-# Imports
-# -----------
-
-# In[ ]:
-
-
-import import_ipynb
-
-import LWE_PKE
-
-
-# Module Info
-# -----------------
-# To model a 'singleton' CLI object in a Pythonic way we define a module that provides a function for CLI.
-
-# In[ ]:
-
+import LWE.standard.LWE_PKE as LWE_PKE
 
 """
 Name
@@ -42,10 +14,6 @@ Contents
 --------
 CLI : runs a command-line interface of LWE
 """
-
-
-# In[ ]:
-
 
 def CLI():
     """
@@ -90,24 +58,17 @@ def CLI():
         message = input()
         
     print("\nEncrypting message...")
-    cipher = alice.enc(message, bpk)
+    cipher = alice.encrypt(message, bpk)
 
     print("\nAlice's ciphertext:")
     print(cipher)
      
     print("\nDecrypting message...")
-    plain = bob.dec(cipher)
+    plain = bob.decrypt(cipher)
     print("\nBob's decrypted plaintext:")
     print(plain)
     
     input("\nMessage decrypted, Press enter to terminate...")
 
-
-# In[ ]:
-
-
 if __name__ == '__main__':
     CLI()
-
-
-# # 
