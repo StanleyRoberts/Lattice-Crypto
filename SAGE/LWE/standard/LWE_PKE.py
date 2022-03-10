@@ -1,3 +1,5 @@
+import sage.all
+
 import copy
 import math
 import random
@@ -31,6 +33,7 @@ Contents
 publicKey : Public key data type for LWE
 LWE : object representing an LWE system
 cipherText : An LWE ciphertext of form (a, b) where a is a vector and b an integer
+createLWE : function that returns an LWE object
 """
 
 class publicKey:
@@ -201,7 +204,7 @@ class LWE:
             self.x = DiscreteGaussianDistributionIntegerSampler(alpha/sqrt(2*pi))
         
         self.VS = GF(self.q)**self.n #vector space, dimension n, modulus q
-        self._s = self.VS.random_element() #secret key
+        self._sk = self.VS.random_element() #secret key
         self._pk = self.__genPublicKey() #public key
     
     def getPublicKey(self):
@@ -221,7 +224,7 @@ class LWE:
         
         a = self.VS.random_element()
         er = self.x()
-        b = self._s.inner_product(a) + er
+        b = self._sk.inner_product(a) + er
         return vector(Integers(self.q), list(a)+[b.lift()])
 
     def __genPublicKey(self):
@@ -273,7 +276,7 @@ class LWE:
         int
             decrypted bit
         """
-        testval = lift(pair.b-pair.a.inner_product(self._s))
+        testval = lift(pair.b-pair.a.inner_product(self._sk))
         compval = math.floor(self.q/2)
         
         if (min(0, compval, key = lambda x: abs(x-testval))==0): return 0
@@ -307,16 +310,16 @@ class LWE_amort(LWE):
             self.m = ((self.n+1)*self.q.log(prec=100)).integer_part()
         if x==None:
             alpha = (1/(sqrt(self.n)*log(self.n)**2))
-            self.x = DiscreteGaussianDistributionIntegerSampler(alpha/sqrt(2*pi))
+            self.x = DiscreteGaussianDistributionIntegerSampler(alpha) #/sqrt(2*pi))
         
         self.VS = GF(self.q)**self.n #vector space, dimension n, modulus q
-        self._s = matrix([self.VS.random_element() for i in range(self.l)]) #secret key
+        self._sk = matrix([self.VS.random_element() for i in range(self.l)]) #secret key
         self._pk = self.__genPublicKey() #public key
         
     def __genPublicKey(self):
         a = matrix([self.VS.random_element() for i in range(self.m)]).T
         x = matrix(GF(self.q), (vector([self.x() for i in range(self.l)]) for i in range(self.m)))
-        p = (self._s*a)+x.T
+        p = (self._sk*a)+x.T
         return publicKey_amort(a, p.T, self.q)
     
         
@@ -336,7 +339,7 @@ class LWE_amort(LWE):
         """
         for bit in bitstring:
             if bit not in ["1", "0"]:
-                raise ValueError("Not a single bit value")
+                raise ValueError("Not binary string")
         if len(bitstring) != apk.getL():
             raise ValueError("bitstring incorrect size")
         
@@ -365,20 +368,20 @@ class LWE_amort(LWE):
             decrypted bit-string
             
             
-        testval = lift(pair.b-pair.a.inner_product(self._s))
+        testval = lift(pair.b-pair.a.inner_product(self._sk))
         compval = math.floor(self.q/2)
         
         if (min(0, compval, key = lambda x: abs(x-testval))==0): return 0
         return 1
         """
-        d = a.b - self._s*a.a
+        d = a.b - self._sk*a.a
         gen = lambda i: min(0, math.floor(self.q/2), key = lambda x: x-d[i]==0)
         v = vector([1 if gen(i)==0 else 0 for i in range(0, self.l)])
         return v
     
     def getL(self): return self._l
         
-def createLWE(n=512, mb=False, q=None, m=None, x=None, l=10):
+def createLWE(n=512, mb=True, q=None, m=None, x=None, l=10):
     """
     Facade for creating an LWE object
     

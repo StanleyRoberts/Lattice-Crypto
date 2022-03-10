@@ -1,5 +1,8 @@
+import sage.all
 import unittest
 from LWE_PKE import *
+from sage.misc.prandom import randint
+from sage.matrix.special import random_matrix, block_matrix
 
 class TestHelpers(unittest.TestCase):
     
@@ -38,16 +41,17 @@ class TestLWE(unittest.TestCase):
         test = createLWE(n, q=mod)
         pk = test.getPublicKey()
         
-        # list of booleans where each value is true iff entry in public key i,j is less than modulus
-        testpk = [lift(pk.getA(i)[j]) < mod and lift(pk.getB(i)) < mod for i in range(0, pk.getSampleNo()) for j in range(0, n)]
+        testpka = [lift(pk.getA(i)[j]) < mod for i in range(0, pk.getSampleNo()) for j in range(0, n)]
+        testpkb = [lift(pk.getB(i))[j] < mod for i in range(0, pk.getSampleNo()) for j in range(0, len(pk.getB(i)))]
         
-        self.assertTrue(all(testpk))
+        self.assertTrue(all(testpka))
+        self.assertTrue(all(testpkb))
 
         
     def test_LWE(self): #ie tests encryption and decryption pairs equal for a large sample
         
-        alice = createLWE(n=80)
-        bob = createLWE(n=100)
+        alice = createLWE(80, False)
+        bob = createLWE(100, False)
 
         tests = 10
 
@@ -56,7 +60,7 @@ class TestLWE(unittest.TestCase):
         pk = bob.getPublicKey()
         for i in range (0, tests):
             message = randint(0, 1)
-            cipher = alice.encrypt(message, pk)
+            cipher = alice.encrypt(str(message), pk)
             plain = bob.decrypt(cipher)
             if message != plain: success = False   
         self.assertTrue(success)
@@ -66,15 +70,15 @@ class TestLWE(unittest.TestCase):
         pk = alice.getPublicKey()
         for i in range (0, tests):
             message = randint(0, 1)
-            cipher = bob.encrypt(message, pk)
+            cipher = bob.encrypt(str(message), pk)
             plain = alice.decrypt(cipher)
             if message != plain: success = False
         self.assertTrue(success)
         
     def test_LWE_amort(self): # test string based methods of LWE
         
-        alice = createLWE(80, True)
-        bob = createLWE(100, True)
+        alice = createLWE(80)
+        bob = createLWE(100)
         
         message = "0110110011"
         cipher = alice.encrypt(message, bob.getPublicKey())
