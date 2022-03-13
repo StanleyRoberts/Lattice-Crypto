@@ -1,5 +1,5 @@
 import LWE.standard.LWE_PKE as LWE_PKE
-import LWE.ring.FHE_PKE as FHE_PKE
+import LWE.ring.FHE_RWLE as FHE_RLWE
 
 """
 Name
