@@ -33,3 +33,6 @@ The simplest way to use this project is running the notebook files, these provid
 
 This project is supposed to function as a mini-library however, so the best way to use the project is create your own Notebook or Sage file, import some modules and start encrypting and decrypting data. The CLI and Demo files can give you an idea of how to use the modules.
 All files are documented using Python DocStrings and notebook files are additionally annoted with Markdown cells to facilitate ease of use. 
+
+Note that in order to use the top-level notebook files (CLI and Benchmark) you must install the module import-ipynb.
+This can be done for your Sage's python using the command 'sage -pip install import-ipynb'
